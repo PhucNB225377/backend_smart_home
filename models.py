@@ -19,6 +19,7 @@ class User(MongoBaseModel):
     email: EmailStr
     passwordHash: str
     fullName: str
+    phone: str
     status: str = "ACTIVE" # Mặc định là Active
     createdAt: datetime = Field(default_factory=datetime.now) # Mặc định tự lấy thời gian hiện tại
 
@@ -27,6 +28,7 @@ class House(MongoBaseModel):
     ownerId: str # Link tới User
     name: str
     address: Optional[str] = None
+    mapId: Optional[str] = None
     createdAt: datetime = Field(default_factory=datetime.now)
 
 # HomeMember
@@ -104,14 +106,16 @@ class UserRegisterRequest(BaseModel):
 
 # Dùng khi update user
 class UserUpdateRequest(BaseModel):
-    email: Optional[EmailStr] = None
-    passwordHash: Optional[str] = None
-    fullName: Optional[str] = None
+    passwordHash: str
+    fullName: str
+    phone: str
+    
 
 # Dùng khi tạo nhà mới
 class HouseCreateRequest(BaseModel):
     name: str
     address: Optional[str] = None
+    mapId: Optional[str] = None
 
 # Dùng khi mời thành viên
 class InviteMemberRequest(BaseModel):
