@@ -19,7 +19,7 @@ class User(MongoBaseModel):
     email: EmailStr
     passwordHash: str
     fullName: str
-    phone: str
+    phone: Optional[str] = None
     status: str = "ACTIVE" # Mặc định là Active
     createdAt: datetime = Field(default_factory=datetime.now) # Mặc định tự lấy thời gian hiện tại
 

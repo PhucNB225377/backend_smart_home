@@ -4,7 +4,7 @@ from database import db
 from models import User, UserRegisterRequest, UserUpdateRequest, RefreshToken
 from passlib.context import CryptContext
 from datetime import datetime, timedelta, timezone
-from jose import jwt, JWTError
+from jose import jwt
 import os
 from dotenv import load_dotenv
 from bson import ObjectId
