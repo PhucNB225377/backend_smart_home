@@ -20,6 +20,7 @@ async def create_house(
         ownerId=str(current_user["_id"]),
         name=house_req.name,
         address=house_req.address,
+        mapId=house_req.mapId,
         createdAt=datetime.now()
     )
 
@@ -62,7 +63,7 @@ async def update_house(
 
     await db.houses.update_one(
         {"_id": ObjectId(house_id)},
-        {"$set": {"name": house_req.name, "address": house_req.address}}
+        {"$set": {"name": house_req.name, "address": house_req.address, "mapId": house_req.mapId}}
     )
     return {"message": "Cập nhật nhà thành công"}
 
