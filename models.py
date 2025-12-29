@@ -23,6 +23,13 @@ class User(MongoBaseModel):
     status: str = "ACTIVE" # Mặc định là Active
     createdAt: datetime = Field(default_factory=datetime.now) # Mặc định tự lấy thời gian hiện tại
 
+# RefreshToken
+class RefreshToken(MongoBaseModel):
+    userId: str
+    token: str
+    expiresAt: datetime
+    revoked: bool = False
+
 # House
 class House(MongoBaseModel):
     ownerId: str # Link tới User
