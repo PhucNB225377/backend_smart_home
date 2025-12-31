@@ -28,7 +28,6 @@ class RefreshToken(MongoBaseModel):
     userId: str
     token: str
     expiresAt: datetime
-    revoked: bool = False
 
 # House
 class House(MongoBaseModel):

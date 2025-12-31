@@ -100,14 +100,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
 # Api đăng xuất (revoke refresh token)
 @router.post("/logout")
 async def logout(refresh_token: str):
-    result = await db.refresh_tokens.update_one(
-        {"token": refresh_token},
-        {"$set": {"revoked": True}}
-    )
-
-    if result.matched_count == 0:
-        raise HTTPException(status_code=400, detail="Token không tồn tại")
-
+    await db.refresh_tokens.delete_one({"token": refresh_token})
     return {"message": "Đăng xuất thành công"}
 
 
@@ -120,18 +113,20 @@ async def refresh_access_token(refresh_token: str):
 
     # Check hết hạn
     if token_doc["expiresAt"] < datetime.now(timezone.utc).replace(tzinfo=None):
+        await db.refresh_tokens.delete_one({"token": refresh_token})
         raise HTTPException(status_code=401, detail="Refresh token đã hết hạn, đăng nhập lại")
+    
+    # Xóa refresh token cũ
+    await db.refresh_tokens.delete_one({"token": refresh_token})
 
-    # Check bị thu hồi
-    if token_doc.get("revoked"):
-        raise HTTPException(status_code=401, detail="Token đã bị thu hồi")
-
-    # Cấp access token mới
+    # Cấp token mới
     user_id = token_doc["userId"]
     access_token = create_access_token(data={"sub": user_id})
+    refresh_token = await create_refresh_token(user_id)
 
     return {
         "access_token": access_token,
+        "refresh_token": refresh_token,
         "token_type": "bearer"
     }
 
