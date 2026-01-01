@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List
 from database import db
-from models import HomeMember, InviteMemberRequest, RespondInviteRequest
+from models import HomeMember, InviteMemberRequest, UpdateMemberRole
 from routers.users import get_current_user
 from routers.utils import check_house_access
 from bson import ObjectId
@@ -15,14 +15,25 @@ async def invite_member(
     req: InviteMemberRequest,
     current_user: dict = Depends(get_current_user)
 ):
-    await check_house_access(req.houseId, str(current_user["_id"]), required_role="OWNER")
+    house = await db.houses.find_one({"_id": ObjectId(req.houseId)})
+    if not house:
+        raise HTTPException(status_code=404, detail="Nhà không tồn tại")
 
     # Tìm user được mời qua email
     target_user = await db.users.find_one({"email": req.email})
     if not target_user:
         raise HTTPException(status_code=404, detail="Email chưa đăng ký tài khoản")
-    
+
     target_user_id = str(target_user["_id"])
+
+    # Không mời chính chủ nhà
+    if str(house["ownerId"]) == target_user_id:
+        raise HTTPException(status_code=400, detail="Không cần mời chủ nhà.")
+
+    if req.role == "OWNER":
+        raise HTTPException(status_code=400, detail="Không mời quyền chủ nhà.")
+
+    await check_house_access(req.houseId, str(current_user["_id"]), required_role="OWNER")
 
     # Kiểm tra xem đã mời / đã là thành viên chưa
     existing_member = await db.home_members.find_one({
@@ -148,14 +159,17 @@ async def get_house_members(
 @router.put("/{member_id}/role")
 async def update_member_role(
     member_id: str,
-    req: RespondInviteRequest,
+    req: UpdateMemberRole,
     current_user: dict = Depends(get_current_user)
 ):
-    member_record = await db.home_members.find_one({"_id": ObjectId(member_id)})
+    member_record = await db.home_members.find_one({"_id": ObjectId(member_id), "houseId": req.houseId})
     if not member_record:
         raise HTTPException(status_code=404, detail="Thành viên không tồn tại")
 
-    await check_house_access(member_record["houseId"], str(current_user["_id"]), required_role="OWNER")
+    if req.role == "OWNER":
+        raise HTTPException(status_code=400, detail="Không chuyển quyền chủ nhà.")
+
+    await check_house_access(req.houseId, str(current_user["_id"]), required_role="OWNER")
 
     await db.home_members.update_one(
         {"_id": ObjectId(member_id)},
@@ -165,18 +179,19 @@ async def update_member_role(
 
 
 # API Xóa thành viên
-@router.delete("/{member_id}")
+@router.delete("/{member_id}/{house_id}")
 async def remove_member(
     member_id: str,
+    house_id: str,
     current_user: dict = Depends(get_current_user)
 ):
-    member_record = await db.home_members.find_one({"_id": ObjectId(member_id)})
+    member_record = await db.home_members.find_one({"_id": ObjectId(member_id), "houseId": house_id})
     if not member_record:
         raise HTTPException(status_code=404, detail="Thành viên không tồn tại")
 
-    await check_house_access(member_record["houseId"], str(current_user["_id"]), required_role="OWNER")
+    await check_house_access(house_id, str(current_user["_id"]), required_role="OWNER")
     
-    await db.home_members.delete_one({"_id": ObjectId(member_id)})
+    await db.home_members.delete_one({"_id": ObjectId(member_id), "houseId": house_id})
     return {"message": "Đã xóa thành viên khỏi nhà"}
 
 
@@ -186,6 +201,14 @@ async def leave_house(
     house_id: str,
     current_user: dict = Depends(get_current_user)
 ):
+    # Check xem có phải chủ nhà không
+    house = await db.houses.find_one({"_id": ObjectId(house_id)})
+    if house and str(house["ownerId"]) == str(current_user["_id"]):
+        raise HTTPException(
+            status_code=400, 
+            detail="Chủ nhà không thể rời đi"
+        )
+    
     member_record = await db.home_members.find_one({
         "houseId": house_id, 
         "userId": str(current_user["_id"])
@@ -193,12 +216,6 @@ async def leave_house(
     
     if not member_record:
         raise HTTPException(status_code=404, detail="Bạn không phải thành viên nhà này")
-
-    if member_record["role"] == "OWNER":
-        raise HTTPException(
-            status_code=400, 
-            detail="Chủ nhà không thể rời đi."
-        )
 
     await db.home_members.delete_one({"_id": member_record["_id"]})
 

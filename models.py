@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, EmailStr, BeforeValidator
-from typing import Optional
+from typing import Optional, Union, List
 from datetime import datetime
 from typing_extensions import Annotated
 
@@ -53,32 +53,33 @@ class Room(MongoBaseModel):
     floor: Optional[int] = None
     createdAt: datetime = Field(default_factory=datetime.now)
 
+# DeviceEndpoint
+class DeviceEndpoint(BaseModel):
+    id: int # STT
+    name: str
+    type: str # SWITCH/SENSOR
+    value: Union[bool, str] = None
+    lastUpdated: datetime = Field(default_factory=datetime.now)
+
 # Device
 class Device(MongoBaseModel):
     deviceId: str # Mã định danh thiết bị, unique
     houseId: str
     roomId: Optional[str] = None # Có thể chưa có phòng
-    typeCode: str # Mã loại thiết bị (LIGHT...)
+    endpoints: List[DeviceEndpoint] = []
     name: str
     serialNo: Optional[str] = None
     bleMac: Optional[str] = None
+    ipAddress: Optional[str] = None
     isOnline: bool = False
     lastSeenAt: Optional[datetime] = None
     createdAt: datetime = Field(default_factory=datetime.now)
-
-# DeviceStateCurrent
-class DeviceStateCurrent(MongoBaseModel):
-    deviceId: str
-    power: bool = False
-    value: Optional[str] = None # Thông tin mở rộng
-    sensors: Optional[str] = None # Cảm biến nhiệt độ, độ ẩm...
-    source: str = "APP" # APP, AUTO, DEVICE
-    updatedAt: datetime = Field(default_factory=datetime.now)
 
 # Command
 class Command(MongoBaseModel):
     commandId: str
     deviceId: str
+    endpointId: int
     command: str # TURN_ON, TURN_OFF, SET_VALUE
     payload: Optional[str] = None # Tham số lệnh
     status: str = "PENDING" # 'PENDING', 'SENT', 'ACKED', 'FAILED'
@@ -88,6 +89,7 @@ class Command(MongoBaseModel):
 # AutoOffRule
 class AutoOffRule(MongoBaseModel):
     deviceId: str
+    endpointId: int
     enabled: bool = True
     durationSec: int = 0
     updatedAt: datetime = Field(default_factory=datetime.now)
@@ -95,6 +97,7 @@ class AutoOffRule(MongoBaseModel):
 # Schedule
 class Schedule(MongoBaseModel):
     deviceId: str
+    endpointId: int
     name: str
     enabled: bool = True
     action: str # JSON string mô tả hành động
@@ -115,7 +118,6 @@ class UserUpdateRequest(BaseModel):
     passwordHash: str
     fullName: str
     phone: str
-    
 
 # Dùng khi tạo nhà mới
 class HouseCreateRequest(BaseModel):
@@ -129,10 +131,10 @@ class InviteMemberRequest(BaseModel):
     email: EmailStr
     role: str = "MEMBER"
 
-# Dùng khi phản hồi lời mời
-class RespondInviteRequest(BaseModel):
-    memberId: str
-    accept: bool
+# Dùng khi đổi role member
+class UpdateMemberRole(BaseModel):
+    houseId: str
+    role: str
 
 # Dùng khi tạo phòng mới
 class RoomCreateRequest(BaseModel):
@@ -150,27 +152,50 @@ class DeviceCreateRequest(BaseModel):
     houseId: str
     roomId: Optional[str] = None
     deviceId: str
-    typeCode: str
     name: str
-    serialNo: Optional[str] = None
+
+# Dùng cập nhật thiết bị
+class DeviceUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    roomId: Optional[str] = None
+
+# Dùng tạo endpoint mới
+class EndpointCreateRequest(BaseModel):
+    id: int
+    name: str
+    type: str = "SWITCH"
+
+# Dùng cập nhật enpoint
+class EndpointUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    type: Optional[str] = None
 
 # Request điều khiển thiết bị
 class CommandRequest(BaseModel):
+    endpointId: int
     command: str
     payload: Optional[str] = None
 
 # Request tạo luật tự động tắt
 class AutoOffRuleCreateRequest(BaseModel):
-    deviceId: str
+    endpointId: int
     enabled: bool = True
     durationSec: int = 60
 
 # Request tạo lịch hẹn
 class ScheduleCreateRequest(BaseModel):
-    deviceId: str
+    endpointId: int
     name: str
     enabled: bool = True
     action: str
     scheduleType: str = "ONCE"
     nextRunAt: datetime
     timezone: str = "Asia/Ho_Chi_Minh"
+
+class ScheduleUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    enabled: Optional[bool] = None
+    action: Optional[str] = None
+    scheduleType: Optional[str] = None
+    nextRunAt: Optional[datetime] = None
+    timezone: Optional[str] = None

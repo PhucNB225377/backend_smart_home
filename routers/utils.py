@@ -44,8 +44,17 @@ async def check_house_access(house_id: str, user_id: str, required_role: str = "
 
 
 # Hàm xử lý xóa dữ liệu liên quan
+async def delete_endpoint_data(device_id: str, endpoint_id: int):
+    await db.commands.delete_many({"deviceId": device_id, "endpointId": endpoint_id})
+    await db.auto_off_rules.delete_one({"deviceId": device_id, "endpointId": endpoint_id})
+    await db.schedules.delete_many({"deviceId": device_id, "endpointId": endpoint_id})
+    await db.devices.update_one(
+        {"deviceId": device_id},
+        {"$pull": {"endpoints": {"id": endpoint_id}}}
+    )
+    print(f"Đã xóa endpoint: {device_id}/{endpoint_id}")
+
 async def delete_device_data(device_id: str):
-    await db.device_state_current.delete_one({"deviceId": device_id})
     await db.commands.delete_many({"deviceId": device_id})
     await db.auto_off_rules.delete_one({"deviceId": device_id})
     await db.schedules.delete_many({"deviceId": device_id})

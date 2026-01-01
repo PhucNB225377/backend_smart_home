@@ -7,6 +7,11 @@ import json
 
 app = FastAPI()
 
+@app.get("/")
+async def root():
+    return {"message": "Server is running..."}
+
+
 mqtt.init_app(app)
 
 # Đăng ký các Router
@@ -20,7 +25,7 @@ app.include_router(members.router, prefix="/members", tags=["Members"])
 # MQTT Event Handlers
 @mqtt.on_connect()
 def connect(client, flags, rc, properties):
-    print("Đã kết nối tới MQTT Broker!")
+    print("Đã kết nối tới MQTT Broker (HiveMQ)!")
     mqtt.client.subscribe("devices/+/state")
 
 @mqtt.on_message()
@@ -33,36 +38,36 @@ async def message(client, topic, payload, qos, properties):
         if len(parts) == 3 and parts[2] == "state":
             device_id = parts[1]
 
-            # Kiểm tra thiết bị trong DB
-            device = await db.devices.find_one({"deviceId": device_id})
-            if not device:
-                print(f"Cảnh báo: Nhận dữ liệu từ thiết bị lạ {device_id}.")
+            try:
+                data = json.loads(payload_str)
+            except json.JSONDecodeError:
+                print("Lỗi: Payload không phải JSON hợp lệ")
                 return
+            
+            endpoint_id = data.get("id")
+            new_value = data.get("val")
 
-            data = json.loads(payload_str)
-
-            update_data = {
-                "updatedAt": datetime.now(),
-                "source": "DEVICE"
-            }
-            if "power" in data:
-                update_data["power"] = data["power"]
-            if "value" in data:
-                update_data["value"] = str(data["value"])
-            if "sensors" in data:
-                update_data["sensors"] = json.dumps(data["sensors"])
-
-            await db.device_state_current.update_one(
-                {"deviceId": device_id},
-                {"$set": update_data},
-                upsert=True
+            if endpoint_id is None or new_value is None:
+                print(f"Bỏ qua: Payload thiếu 'id' hoặc 'val'. Data: {data}")
+                return
+            
+            # Cập nhật DB
+            result = await db.devices.update_one(
+                {"deviceId": device_id, "endpoints.id": endpoint_id },
+                {
+                    "$set": {
+                        "endpoints.$.value": new_value,
+                        "endpoints.$.lastUpdated": datetime.now(),
+                        "isOnline": True,
+                        "lastSeenAt": datetime.now()
+                    }
+                }
             )
 
-            await db.devices.update_one(
-                {"deviceId": device_id},
-                {"$set": {"isOnline": True, "lastSeenAt": datetime.now()}}
-            )
-            print(f"Đã cập nhật trạng thái cho {device_id}")
+            if result.matched_count > 0:
+                print(f"Đã cập nhật: Device {device_id} | Endpoint {endpoint_id} = {new_value}")
+            else:
+                print(f"Không tìm thấy Device {device_id} hoặc Endpoint {endpoint_id} trong DB.")
 
     except Exception as e:
         print(f"Lỗi xử lý MQTT: {e}")
