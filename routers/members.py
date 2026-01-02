@@ -172,7 +172,7 @@ async def update_member_role(
     await check_house_access(req.houseId, str(current_user["_id"]), required_role="OWNER")
 
     await db.home_members.update_one(
-        {"_id": ObjectId(member_id)},
+        {"_id": ObjectId(member_id), "houseId": req.houseId},
         {"$set": {"role": req.role}}
     )
     return {"message": "Cập nhật vai trò thành viên thành công"}
