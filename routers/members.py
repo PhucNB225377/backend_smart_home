@@ -91,6 +91,10 @@ async def accept_invitation(
     current_user: dict = Depends(get_current_user)
 ):
     invite = await db.home_members.find_one({"_id": ObjectId(member_id)})
+
+    if invite["status"] != "PENDING":
+        raise HTTPException(status_code=400, detail="Lời mời không còn hiệu lực hoặc đã được xử lý")
+
     if not invite:
         raise HTTPException(status_code=404, detail="Lời mời không tồn tại")
 
@@ -179,19 +183,18 @@ async def update_member_role(
 
 
 # API Xóa thành viên
-@router.delete("/{member_id}/{house_id}")
+@router.delete("/{member_id}")
 async def remove_member(
     member_id: str,
-    house_id: str,
     current_user: dict = Depends(get_current_user)
 ):
-    member_record = await db.home_members.find_one({"_id": ObjectId(member_id), "houseId": house_id})
+    member_record = await db.home_members.find_one({"_id": ObjectId(member_id)})
     if not member_record:
         raise HTTPException(status_code=404, detail="Thành viên không tồn tại")
 
-    await check_house_access(house_id, str(current_user["_id"]), required_role="OWNER")
+    await check_house_access(member_record["houseId"], str(current_user["_id"]), required_role="OWNER")
     
-    await db.home_members.delete_one({"_id": ObjectId(member_id), "houseId": house_id})
+    await db.home_members.delete_one({"_id": ObjectId(member_id), "houseId": member_record["houseId"]})
     return {"message": "Đã xóa thành viên khỏi nhà"}
 
 
