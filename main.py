@@ -26,7 +26,7 @@ app.include_router(members.router, prefix="/members", tags=["Members"])
 @mqtt.on_connect()
 def connect(client, flags, rc, properties):
     print("Đã kết nối tới MQTT Broker (HiveMQ)!")
-    mqtt.client.subscribe("+/+/device")
+    mqtt.client.subscribe("+/+/+/device")
 
 @mqtt.on_message()
 async def message(client, topic, payload, qos, properties):
@@ -35,9 +35,9 @@ async def message(client, topic, payload, qos, properties):
         print(f"Received message: {topic} -> {payload_str}")
 
         parts = topic.split("/")
-        if len(parts) == 3 and parts[2] == "device":
-            house_id = parts[0]
-            room_id = parts[1]
+        if len(parts) == 4 and parts[3] == "device":
+            house_id = parts[1]
+            room_id = parts[2]
 
             try:
                 data = json.loads(payload_str)
