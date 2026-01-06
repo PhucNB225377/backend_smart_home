@@ -26,7 +26,7 @@ app.include_router(members.router, prefix="/members", tags=["Members"])
 @mqtt.on_connect()
 def connect(client, flags, rc, properties):
     print("Đã kết nối tới MQTT Broker (HiveMQ)!")
-    mqtt.client.subscribe("+/+/+/device")
+    mqtt.client.subscribe("+/device")
 
 @mqtt.on_message()
 async def message(client, topic, payload, qos, properties):
@@ -35,9 +35,8 @@ async def message(client, topic, payload, qos, properties):
         print(f"Received message: {topic} -> {payload_str}")
 
         parts = topic.split("/")
-        if len(parts) == 4 and parts[3] == "device":
-            house_id = parts[1]
-            room_id = parts[2]
+        if len(parts) == 2 and parts[1] == "device":
+            room_id = parts[0]
 
             try:
                 data = json.loads(payload_str)
@@ -55,7 +54,6 @@ async def message(client, topic, payload, qos, properties):
             # Tìm thiết bị theo house_id và room_id
             result = await db.devices.update_one(
                 {
-                    "houseId": house_id,
                     "roomId": room_id,
                     "endpoints.id": endpoint_id
                 },
@@ -70,9 +68,9 @@ async def message(client, topic, payload, qos, properties):
             )
 
             if result.matched_count > 0:
-                print(f"Đã update: Nhà {house_id} - Phòng {room_id} - Endpoint {endpoint_id}")
+                print(f"Đã update: Phòng {room_id} - Endpoint {endpoint_id}")
             else:
-                print(f"Không tìm thấy thiết bị tại Nhà {house_id}, Phòng {room_id} hoặc Endpoint sai ID.")
+                print(f"Không tìm thấy thiết bị tại Phòng {room_id} hoặc Endpoint sai ID.")
 
     except Exception as e:
         print(f"Lỗi xử lý MQTT: {e}")

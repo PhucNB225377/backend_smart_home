@@ -231,14 +231,12 @@ async def send_command(
     await db.commands.insert_one(new_command.model_dump(by_alias=True, exclude=["id"]))
 
     # Gửi lệnh qua MQTT
-    user_id = str(current_user["_id"])
-    house_id = device.get("houseId")
     room_id = device.get("roomId")
 
-    if not house_id or not room_id:
+    if not room_id:
         raise HTTPException(status_code=400, detail="Thiết bị chưa được gán vào phòng")
 
-    topic = f"{user_id}/{house_id}/{room_id}/device"
+    topic = f"{room_id}/device"
 
     payload = {
         "id": cmd_req.endpointId,
