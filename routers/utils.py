@@ -58,7 +58,7 @@ async def delete_device_data(device_id: str):
     await db.commands.delete_many({"deviceId": device_id})
     await db.auto_off_rules.delete_one({"deviceId": device_id})
     await db.schedules.delete_many({"deviceId": device_id})
-    await db.devices.delete_one({"deviceId": device_id})
+    await db.devices.delete_one({{"_id": ObjectId(device_id)}})
     print(f"Đã xóa thiết bị: {device_id}")
 
 async def delete_room_data(room_id: str):

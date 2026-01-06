@@ -55,17 +55,16 @@ class Room(MongoBaseModel):
 
 # DeviceEndpoint
 class DeviceEndpoint(BaseModel):
-    id: int # STT
+    id: str
     name: str
     type: str # SWITCH/SENSOR
-    value: Union[bool, str] = None
+    value: Union[int, float, bool, str] = None
     lastUpdated: datetime = Field(default_factory=datetime.now)
 
 # Device
 class Device(MongoBaseModel):
-    deviceId: str # Mã định danh thiết bị, unique
     houseId: str
-    roomId: Optional[str] = None # Có thể chưa có phòng
+    roomId: str
     endpoints: List[DeviceEndpoint] = []
     name: str
     serialNo: Optional[str] = None
@@ -150,8 +149,7 @@ class RoomUpdateRequest(BaseModel):
 # Dùng khi tạo thiết bị mới
 class DeviceCreateRequest(BaseModel):
     houseId: str
-    roomId: Optional[str] = None
-    deviceId: str
+    roomId: str
     name: str
 
 # Dùng cập nhật thiết bị
@@ -161,7 +159,7 @@ class DeviceUpdateRequest(BaseModel):
 
 # Dùng tạo endpoint mới
 class EndpointCreateRequest(BaseModel):
-    id: int
+    id: str
     name: str
     type: str = "SWITCH"
 

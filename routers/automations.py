@@ -11,7 +11,7 @@ router = APIRouter()
 
 # Hàm phụ trợ check quyền sở hữu thiết bị
 async def verify_device_ownership(device_id: str, user_id: str):
-    device = await db.devices.find_one({"deviceId": device_id})
+    device = await db.devices.find_one({"_id": ObjectId(device_id)})
     if not device:
         raise HTTPException(status_code=404, detail="Thiết bị không tồn tại")
 

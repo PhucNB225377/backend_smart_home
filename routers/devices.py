@@ -17,15 +17,9 @@ async def create_device(
     device_req: DeviceCreateRequest,
     current_user: dict = Depends(get_current_user)
 ):
-    # Kiểm tra deviceId đã tồn tại chưa
-    existing_device = await db.devices.find_one({"deviceId": device_req.deviceId})
-    if existing_device:
-        raise HTTPException(status_code=400, detail="Mã thiết bị này đã tồn tại")
-
     await check_house_access(device_req.houseId, str(current_user["_id"]), required_role="ADMIN")
 
     new_device = Device(
-        deviceId=device_req.deviceId,
         houseId=device_req.houseId,
         roomId=device_req.roomId,
         name=device_req.name,
@@ -37,8 +31,7 @@ async def create_device(
 
     return {
         "message": "Thêm thiết bị thành công",
-        "deviceId": device_req.deviceId,
-        "id": str(result.inserted_id)
+        "deviceId": str(result.inserted_id)
     }
 
 # API cập nhật device
@@ -48,7 +41,7 @@ async def update_device(
     req: DeviceUpdateRequest,
     current_user: dict = Depends(get_current_user)
 ):
-    device = await db.devices.find_one({"deviceId": device_id})
+    device = await db.devices.find_one({"_id": ObjectId(device_id)})
     if not device:
         raise HTTPException(status_code=404, detail="Không tìm thấy thiết bị")
 
@@ -107,7 +100,7 @@ async def add_endpoint(
     endpoint_req: EndpointCreateRequest,
     current_user: dict = Depends(get_current_user)
 ):
-    device = await db.devices.find_one({"deviceId": device_id})
+    device = await db.devices.find_one({"_id": ObjectId(device_id)})
     if not device:
         raise HTTPException(status_code=404, detail="Thiết bị không tồn tại")
 
@@ -137,11 +130,11 @@ async def add_endpoint(
 @router.put("/{device_id}/endpoints/{endpoint_id}")
 async def update_endpoint(
     device_id: str,
-    endpoint_id: int,
+    endpoint_id: str,
     req: EndpointUpdateRequest,
     current_user: dict = Depends(get_current_user)
 ):
-    device = await db.devices.find_one({"deviceId": device_id})
+    device = await db.devices.find_one({"_id": ObjectId(device_id)})
     if not device:
         raise HTTPException(status_code=404, detail="Thiết bị không tồn tại")
         
@@ -169,10 +162,10 @@ async def update_endpoint(
 @router.delete("/{device_id}/endpoints/{endpoint_id}")
 async def delete_endpoint(
     device_id: str,
-    endpoint_id: int,
+    endpoint_id: str,
     current_user: dict = Depends(get_current_user)
 ):
-    device = await db.devices.find_one({"deviceId": device_id})
+    device = await db.devices.find_one({"_id": ObjectId(device_id)})
     if not device:
         raise HTTPException(status_code=404, detail="Thiết bị không tồn tại")
         
@@ -219,7 +212,7 @@ async def send_command(
     cmd_req: CommandRequest,
     current_user: dict = Depends(get_current_user)
 ):
-    device = await db.devices.find_one({"deviceId": device_id})
+    device = await db.devices.find_one({"_id": ObjectId(device_id)})
     if not device:
         raise HTTPException(status_code=404, detail="Thiết bị không tồn tại")
 
@@ -238,7 +231,13 @@ async def send_command(
     await db.commands.insert_one(new_command.model_dump(by_alias=True, exclude=["id"]))
 
     # Gửi lệnh qua MQTT
-    topic = f"devices/{device_id}/set"
+    house_id = device.get("houseId")
+    room_id = device.get("roomId")
+
+    if not house_id or not room_id:
+        raise HTTPException(status_code=400, detail="Thiết bị chưa được gán vào phòng")
+
+    topic = f"{house_id}/{room_id}/device"
 
     payload = {
         "id": cmd_req.endpointId,

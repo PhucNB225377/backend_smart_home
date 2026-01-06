@@ -26,7 +26,7 @@ app.include_router(members.router, prefix="/members", tags=["Members"])
 @mqtt.on_connect()
 def connect(client, flags, rc, properties):
     print("Đã kết nối tới MQTT Broker (HiveMQ)!")
-    mqtt.client.subscribe("devices/+/state")
+    mqtt.client.subscribe("+/+/device")
 
 @mqtt.on_message()
 async def message(client, topic, payload, qos, properties):
@@ -35,25 +35,30 @@ async def message(client, topic, payload, qos, properties):
         print(f"Received message: {topic} -> {payload_str}")
 
         parts = topic.split("/")
-        if len(parts) == 3 and parts[2] == "state":
-            device_id = parts[1]
+        if len(parts) == 3 and parts[2] == "device":
+            house_id = parts[0]
+            room_id = parts[1]
 
             try:
                 data = json.loads(payload_str)
             except json.JSONDecodeError:
-                print("Lỗi: Payload không phải JSON hợp lệ")
+                print("Lỗi: Payload không phải JSON")
                 return
             
+            # Lấy thông tin endpoint từ payload
             endpoint_id = data.get("id")
             new_value = data.get("val")
 
             if endpoint_id is None or new_value is None:
-                print(f"Bỏ qua: Payload thiếu 'id' hoặc 'val'. Data: {data}")
                 return
-            
-            # Cập nhật DB
+
+            # Tìm thiết bị theo house_id và room_id
             result = await db.devices.update_one(
-                {"deviceId": device_id, "endpoints.id": endpoint_id },
+                {
+                    "houseId": house_id,
+                    "roomId": room_id,
+                    "endpoints.id": endpoint_id
+                },
                 {
                     "$set": {
                         "endpoints.$.value": new_value,
@@ -65,9 +70,9 @@ async def message(client, topic, payload, qos, properties):
             )
 
             if result.matched_count > 0:
-                print(f"Đã cập nhật: Device {device_id} | Endpoint {endpoint_id} = {new_value}")
+                print(f"Đã update: Nhà {house_id} - Phòng {room_id} - Endpoint {endpoint_id}")
             else:
-                print(f"Không tìm thấy Device {device_id} hoặc Endpoint {endpoint_id} trong DB.")
+                print(f"Không tìm thấy thiết bị tại Nhà {house_id}, Phòng {room_id} hoặc Endpoint sai ID.")
 
     except Exception as e:
         print(f"Lỗi xử lý MQTT: {e}")
