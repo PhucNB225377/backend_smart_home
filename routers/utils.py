@@ -49,7 +49,7 @@ async def delete_endpoint_data(device_id: str, endpoint_id: int):
     await db.auto_off_rules.delete_one({"deviceId": device_id, "endpointId": endpoint_id})
     await db.schedules.delete_many({"deviceId": device_id, "endpointId": endpoint_id})
     await db.devices.update_one(
-        {"deviceId": device_id},
+        {"_id": ObjectId(device_id)},
         {"$pull": {"endpoints": {"id": endpoint_id}}}
     )
     print(f"Đã xóa endpoint: {device_id}/{endpoint_id}")
@@ -58,13 +58,13 @@ async def delete_device_data(device_id: str):
     await db.commands.delete_many({"deviceId": device_id})
     await db.auto_off_rules.delete_one({"deviceId": device_id})
     await db.schedules.delete_many({"deviceId": device_id})
-    await db.devices.delete_one({{"_id": ObjectId(device_id)}})
+    await db.devices.delete_one({"_id": ObjectId(device_id)})
     print(f"Đã xóa thiết bị: {device_id}")
 
 async def delete_room_data(room_id: str):
     devices_cursor = db.devices.find({"roomId": room_id})
     async for device in devices_cursor:
-        await delete_device_data(device["deviceId"])
+        await delete_device_data(str(device["_id"]))
 
     await db.rooms.delete_one({"_id": ObjectId(room_id)})
 
@@ -73,7 +73,7 @@ async def delete_room_data(room_id: str):
 async def delete_house_data(house_id: str):
     devices_cursor = db.devices.find({"houseId": house_id})
     async for device in devices_cursor:
-        await delete_device_data(device["deviceId"])
+        await delete_device_data(str(device["_id"]))
 
     await db.rooms.delete_many({"houseId": house_id})
 
