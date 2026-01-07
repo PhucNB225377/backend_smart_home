@@ -55,7 +55,7 @@ class Room(MongoBaseModel):
 
 # DeviceEndpoint
 class DeviceEndpoint(BaseModel):
-    id: str
+    id: int
     name: str
     type: str # SWITCH/SENSOR
     value: Union[int, float, bool, str] = None
@@ -159,7 +159,7 @@ class DeviceUpdateRequest(BaseModel):
 
 # Dùng tạo endpoint mới
 class EndpointCreateRequest(BaseModel):
-    id: str
+    id: int
     name: str
     type: str = "SWITCH"
 

@@ -130,7 +130,7 @@ async def add_endpoint(
 @router.put("/{device_id}/endpoints/{endpoint_id}")
 async def update_endpoint(
     device_id: str,
-    endpoint_id: str,
+    endpoint_id: int,
     req: EndpointUpdateRequest,
     current_user: dict = Depends(get_current_user)
 ):
@@ -162,7 +162,7 @@ async def update_endpoint(
 @router.delete("/{device_id}/endpoints/{endpoint_id}")
 async def delete_endpoint(
     device_id: str,
-    endpoint_id: str,
+    endpoint_id: int,
     current_user: dict = Depends(get_current_user)
 ):
     device = await db.devices.find_one({"_id": ObjectId(device_id)})
@@ -232,18 +232,86 @@ async def send_command(
 
     # Gửi lệnh qua MQTT
     room_id = device.get("roomId")
-
     if not room_id:
         raise HTTPException(status_code=400, detail="Thiết bị chưa được gán vào phòng")
 
+    payload = {}
+
+    target_val = 0
+    if cmd_req.command == "TURN_ON":
+        target_val = 1
+    elif cmd_req.command == "TURN_OFF":
+        target_val = 0
+
+    # Tạo payload đầy đủ cho tất cả các endpoint (device1, device2, device3)
+    for i in range(1, 4):
+        key = f"device{i}"
+
+        # Nếu i trùng với endpoint đang điều khiển -> lấy giá trị mới
+        if i == cmd_req.endpointId:
+            payload[key] = target_val
+        else:
+            # Nếu không phải -> tìm giá trị hiện tại trong DB
+            # Mặc định là 0 nếu không tìm thấy trong DB
+            current_val = 0
+
+            # Quét endpoints trong DB để tìm id tương ứng
+            for ep in device.get("endpoints", []):
+                if ep["id"] == i:
+                    val_str = str(ep["value"]).upper()
+                    if val_str == "ON" or val_str == "1":
+                        current_val = 1
+                    break
+            
+            payload[key] = current_val
+
     topic = f"{room_id}/device"
-
-    payload = {
-        "id": cmd_req.endpointId,
-        "command": cmd_req.command,
-        "payload": cmd_req.payload
-    }
-
     mqtt.publish(topic, json.dumps(payload))
 
-    return {"message": "Đã gửi lệnh xuống thiết bị", "mqtt_topic": topic}
+    return {
+        "message": "Đã gửi lệnh gộp xuống thiết bị", 
+        "mqtt_topic": topic, 
+        "payload": payload
+    }
+
+# API lấy lịch sử lệnh
+@router.get("/{device_id}/history")
+async def get_device_history(
+    device_id: str,
+    limit: int = 20, # Mặc định lấy 20 lệnh gần nhất
+    skip: int = 0, # Dùng để load more (phân trang)
+    current_user: dict = Depends(get_current_user)
+):
+    # Check quyền truy cập thiết bị
+    device = await db.devices.find_one({"_id": ObjectId(device_id)})
+    if not device:
+        raise HTTPException(status_code=404, detail="Thiết bị không tồn tại")
+
+    await check_house_access(device["houseId"], str(current_user["_id"]))
+
+    # Query lịch sử từ bảng commands
+    # Sắp xếp theo createdAt giảm dần để lấy lệnh mới nhất trước
+    cursor = db.commands.find({"deviceId": device_id}).sort("createdAt", -1).skip(skip).limit(limit)
+    
+    history = await cursor.to_list(length=limit)
+
+    result = []
+    for cmd in history:
+        # Tìm tên endpoint để hiển thị
+        ep_name = "Unknown"
+        for ep in device.get("endpoints", []):
+            if ep["id"] == cmd["endpointId"]:
+                ep_name = ep["name"]
+                break
+
+        result.append({
+            "commandId": cmd.get("commandId"),
+            "endpointId": cmd["endpointId"],
+            "endpointName": ep_name,
+            "command": cmd["command"], # TURN_ON, TURN_OFF
+            "status": cmd["status"], # PENDING, SENT...
+            "createdAt": cmd["createdAt"],
+            "ackedAt": cmd.get("ackedAt") # Thời điểm thiết bị phản hồi
+        })
+
+    return result

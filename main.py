@@ -1,16 +1,30 @@
 from fastapi import FastAPI
+from contextlib import asynccontextmanager
+import asyncio
 from database import db
 from routers import users, houses, rooms, devices, automations, members
 from mqtt_client import mqtt
 from datetime import datetime
 import json
+from scheduler import run_scheduler
 
-app = FastAPI()
+# Quản lý vòng đời app(server)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Khi server khởi động -> chạy Scheduler
+    task = asyncio.create_task(run_scheduler())
 
-@app.get("/")
-async def root():
-    return {"message": "Server is running..."}
+    # Khởi động MQTT
+    await mqtt.mqtt_startup()
 
+    yield # Server bắt đầu chạy
+
+    # Khi server tắt -> hủy task Scheduler, tắt MQTT
+    await mqtt.mqtt_shutdown()
+    task.cancel()
+    print("Server đang tắt...")
+
+app = FastAPI(lifespan=lifespan)
 
 mqtt.init_app(app)
 
