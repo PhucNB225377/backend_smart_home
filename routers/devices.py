@@ -114,7 +114,7 @@ async def add_endpoint(
         id=endpoint_req.id,
         name=endpoint_req.name,
         type=endpoint_req.type,
-        value="OFF",
+        value=0,
         lastUpdated=datetime.now()
     )
 
@@ -258,8 +258,7 @@ async def send_command(
             # Quét endpoints trong DB để tìm id tương ứng
             for ep in device.get("endpoints", []):
                 if ep["id"] == i:
-                    val_str = str(ep["value"]).upper()
-                    if val_str == "ON" or val_str == "1":
+                    if ep.get("value") == 1: 
                         current_val = 1
                     break
             

@@ -18,8 +18,7 @@ def build_fixed_payload(device, target_ep_id, target_val):
             current_val = 0
             for ep in device.get("endpoints", []):
                 if ep["id"] == i:
-                    val_str = str(ep["value"]).upper()
-                    if val_str == "ON" or val_str == "1":
+                    if ep.get("value") == 1:
                         current_val = 1
                     break
             payload[key] = current_val
@@ -43,7 +42,7 @@ async def check_auto_off_rules():
         target_ep = next((ep for ep in device["endpoints"] if ep["id"] == endpoint_id), None)
         
         # Check thời gian
-        if target_ep and str(target_ep["value"]).upper() != "OFF":
+        if target_ep and target_ep.get("value") == 1:
             turn_on_time = target_ep["lastUpdated"]
             if (datetime.now() - turn_on_time).total_seconds() >= duration:
                 print(f"Auto-Off: Tắt device{endpoint_id}")
@@ -57,7 +56,7 @@ async def check_auto_off_rules():
                 # Cập nhật DB
                 await db.devices.update_one(
                     {"deviceId": device_id, "endpoints.id": endpoint_id},
-                    {"$set": {"endpoints.$.value": "OFF", "endpoints.$.lastUpdated": datetime.now()}}
+                    {"$set": {"endpoints.$.value": 0, "endpoints.$.lastUpdated": datetime.now()}}
                 )
 
 # Hàm xử lý Schedule

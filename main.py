@@ -50,51 +50,45 @@ async def message(client, topic, payload, qos, properties):
 
         parts = topic.split("/")
         if len(parts) == 2:
-            if parts[1] == "device":
-                room_id = parts[0]
+            room_id = parts[0]
+            type_msg = parts[1]
 
-                try:
-                    data = json.loads(payload_str)
-                except json.JSONDecodeError:
-                    print("Lỗi: Payload không phải JSON")
-                    return
-                
-                # Lấy thông tin endpoint từ payload
-                endpoint_id = data.get("id")
-                new_value = data.get("val")
+            try:
+                data = json.loads(payload_str)
+            except json.JSONDecodeError:
+                data = payload_str
 
-                if endpoint_id is None or new_value is None:
-                    return
+            # Xử lý theo loại message
+            if type_msg == "device":
+                if isinstance(data, dict):
+                    for key, val in data.items():
+                        try:
+                            if key.startswith("device"):
+                                endpoint_id = int(key.replace("device", ""))
 
-                # Tìm thiết bị theo room_id
-                result = await db.devices.update_one(
-                    {
-                        "roomId": room_id,
-                        "endpoints.id": endpoint_id
-                    },
-                    {
-                        "$set": {
-                            "endpoints.$.value": new_value,
-                            "endpoints.$.lastUpdated": datetime.now(),
-                            "isOnline": True,
-                            "lastSeenAt": datetime.now()
-                        }
-                    }
-                )
-
-                if result.matched_count > 0:
-                    print(f"Đã update: Phòng {room_id} - Endpoint {endpoint_id}")
+                                result = await db.devices.update_one(
+                                    {"roomId": room_id, "endpoints.id": endpoint_id},
+                                    {
+                                        "$set": {
+                                            "endpoints.$.value": val,
+                                            "endpoints.$.lastUpdated": datetime.now(),
+                                            "isOnline": True,
+                                            "lastSeenAt": datetime.now()
+                                        }
+                                    }
+                                )
+                                if result.matched_count > 0:
+                                    print(f"-> Update: Phòng {room_id} - Ep {endpoint_id} = {val}")
+                        except ValueError:
+                            continue
                 else:
-                    print(f"Không tìm thấy thiết bị tại Phòng {room_id} hoặc Endpoint sai ID.")
+                    print("Lỗi: Payload device phải là JSON Object")
 
-            elif parts[1] == "status":
-                SENSOR_ENDPOINT_ID = 4 
+            elif type_msg == "status":
+                SENSOR_ENDPOINT_ID = 4
 
                 result = await db.devices.update_one(
-                    {
-                        "roomId": room_id, 
-                        "endpoints.id": SENSOR_ENDPOINT_ID
-                    },
+                    {"roomId": room_id, "endpoints.id": SENSOR_ENDPOINT_ID},
                     {
                         "$set": {
                             "endpoints.$.value": data,
@@ -103,11 +97,11 @@ async def message(client, topic, payload, qos, properties):
                         }
                     }
                 )
-                
+
                 if result.matched_count > 0:
-                    print(f"Đã update Sensor phòng {room_id}: {data}")
+                    print(f"-> Update Sensor phòng {room_id}: {data}")
                 else:
-                    print(f"Cảnh báo: Chưa tạo Endpoint id=4 cho phòng {room_id}")
+                    print(f"Cảnh báo: Không tìm thấy Sensor (id=4) ở phòng {room_id}")
 
     except Exception as e:
         print(f"Lỗi xử lý MQTT: {e}")
