@@ -66,7 +66,7 @@ async def message(client, topic, payload, qos, properties):
                 if endpoint_id is None or new_value is None:
                     return
 
-                # Tìm thiết bị theo house_id và room_id
+                # Tìm thiết bị theo room_id
                 result = await db.devices.update_one(
                     {
                         "roomId": room_id,
@@ -88,24 +88,26 @@ async def message(client, topic, payload, qos, properties):
                     print(f"Không tìm thấy thiết bị tại Phòng {room_id} hoặc Endpoint sai ID.")
 
             elif parts[1] == "status":
-                room_id = parts[0]
-                status = payload_str.upper()
+                SENSOR_ENDPOINT_ID = 4 
 
-                is_online = True if status == "ONLINE" else False
-
-                result = await db.devices.update_many(
+                result = await db.devices.update_one(
                     {
-                        "roomId": room_id
+                        "roomId": room_id, 
+                        "endpoints.id": SENSOR_ENDPOINT_ID
                     },
                     {
                         "$set": {
-                            "isOnline": is_online,
-                            "lastSeenAt": datetime.now()
+                            "endpoints.$.value": data,
+                            "endpoints.$.lastUpdated": datetime.now(),
+                            "isOnline": True
                         }
                     }
                 )
-
-                print(f"Cập nhật trạng thái thiết bị trong phòng {room_id} thành {'ONLINE' if is_online else 'OFFLINE'}.")
+                
+                if result.matched_count > 0:
+                    print(f"Đã update Sensor phòng {room_id}: {data}")
+                else:
+                    print(f"Cảnh báo: Chưa tạo Endpoint id=4 cho phòng {room_id}")
 
     except Exception as e:
         print(f"Lỗi xử lý MQTT: {e}")

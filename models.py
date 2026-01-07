@@ -58,7 +58,7 @@ class DeviceEndpoint(BaseModel):
     id: int
     name: str
     type: str # SWITCH/SENSOR
-    value: Union[int, float, bool, str] = None
+    value: Union[int, dict] = None
     lastUpdated: datetime = Field(default_factory=datetime.now)
 
 # Device
