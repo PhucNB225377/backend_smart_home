@@ -83,6 +83,16 @@ async def get_invitations(current_user: dict = Depends(get_current_user)):
             
     return result
 
+# API lấy số lượng lời mời đang chờ
+@router.get("/invitations/count")
+async def count_pending_invitations(current_user: dict = Depends(get_current_user)):
+    count = await db.home_members.count_documents({
+        "userId": str(current_user["_id"]),
+        "status": "PENDING"
+    })
+    
+    return {"count": count}
+
 
 # API chấp nhận lời mời
 @router.put("/invitations/{member_id}/accept")
