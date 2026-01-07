@@ -69,7 +69,7 @@ async def update_device(
         return {"message": "Không có thông tin nào thay đổi"}
 
     await db.devices.update_one(
-        {"deviceId": device_id},
+        {"_id": ObjectId(device_id)},
         {"$set": update_data}
     )
 
@@ -81,7 +81,7 @@ async def delete_device(
     device_id: str,
     current_user: dict = Depends(get_current_user)
 ):
-    device = await db.devices.find_one({"deviceId": device_id})
+    device = await db.devices.find_one({"_id": ObjectId(device_id)})
     if not device:
         raise HTTPException(status_code=404, detail="Không tìm thấy thiết bị")
 
@@ -120,7 +120,7 @@ async def add_endpoint(
 
     # Push vào mảng endpoints
     await db.devices.update_one(
-        {"deviceId": device_id},
+        {"_id": ObjectId(device_id)},
         {"$push": {"endpoints": new_endpoint.model_dump()}}
     )
 
@@ -149,7 +149,7 @@ async def update_endpoint(
         return {"message": "Không có dữ liệu thay đổi"}
 
     result = await db.devices.update_one(
-        {"deviceId": device_id, "endpoints.id": endpoint_id},
+        {"_id": ObjectId(device_id), "endpoints.id": endpoint_id},
         {"$set": update_fields}
     )
 

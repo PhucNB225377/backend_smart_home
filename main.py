@@ -40,7 +40,7 @@ app.include_router(members.router, prefix="/members", tags=["Members"])
 @mqtt.on_connect()
 def connect(client, flags, rc, properties):
     print("Đã kết nối tới MQTT Broker (HiveMQ)!")
-    mqtt.client.subscribe("+/device")
+    mqtt.client.subscribe("+/+")
 
 @mqtt.on_message()
 async def message(client, topic, payload, qos, properties):
@@ -49,42 +49,63 @@ async def message(client, topic, payload, qos, properties):
         print(f"Received message: {topic} -> {payload_str}")
 
         parts = topic.split("/")
-        if len(parts) == 2 and parts[1] == "device":
-            room_id = parts[0]
+        if len(parts) == 2:
+            if parts[1] == "device":
+                room_id = parts[0]
 
-            try:
-                data = json.loads(payload_str)
-            except json.JSONDecodeError:
-                print("Lỗi: Payload không phải JSON")
-                return
-            
-            # Lấy thông tin endpoint từ payload
-            endpoint_id = data.get("id")
-            new_value = data.get("val")
+                try:
+                    data = json.loads(payload_str)
+                except json.JSONDecodeError:
+                    print("Lỗi: Payload không phải JSON")
+                    return
+                
+                # Lấy thông tin endpoint từ payload
+                endpoint_id = data.get("id")
+                new_value = data.get("val")
 
-            if endpoint_id is None or new_value is None:
-                return
+                if endpoint_id is None or new_value is None:
+                    return
 
-            # Tìm thiết bị theo house_id và room_id
-            result = await db.devices.update_one(
-                {
-                    "roomId": room_id,
-                    "endpoints.id": endpoint_id
-                },
-                {
-                    "$set": {
-                        "endpoints.$.value": new_value,
-                        "endpoints.$.lastUpdated": datetime.now(),
-                        "isOnline": True,
-                        "lastSeenAt": datetime.now()
+                # Tìm thiết bị theo house_id và room_id
+                result = await db.devices.update_one(
+                    {
+                        "roomId": room_id,
+                        "endpoints.id": endpoint_id
+                    },
+                    {
+                        "$set": {
+                            "endpoints.$.value": new_value,
+                            "endpoints.$.lastUpdated": datetime.now(),
+                            "isOnline": True,
+                            "lastSeenAt": datetime.now()
+                        }
                     }
-                }
-            )
+                )
 
-            if result.matched_count > 0:
-                print(f"Đã update: Phòng {room_id} - Endpoint {endpoint_id}")
-            else:
-                print(f"Không tìm thấy thiết bị tại Phòng {room_id} hoặc Endpoint sai ID.")
+                if result.matched_count > 0:
+                    print(f"Đã update: Phòng {room_id} - Endpoint {endpoint_id}")
+                else:
+                    print(f"Không tìm thấy thiết bị tại Phòng {room_id} hoặc Endpoint sai ID.")
+
+            elif parts[1] == "status":
+                room_id = parts[0]
+                status = payload_str.upper()
+
+                is_online = True if status == "ONLINE" else False
+
+                result = await db.devices.update_many(
+                    {
+                        "roomId": room_id
+                    },
+                    {
+                        "$set": {
+                            "isOnline": is_online,
+                            "lastSeenAt": datetime.now()
+                        }
+                    }
+                )
+
+                print(f"Cập nhật trạng thái thiết bị trong phòng {room_id} thành {'ONLINE' if is_online else 'OFFLINE'}.")
 
     except Exception as e:
         print(f"Lỗi xử lý MQTT: {e}")
